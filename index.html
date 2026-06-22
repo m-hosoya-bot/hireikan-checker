@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>歓迎表現チェッカー</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f7f7f5;
+  --bg-tertiary: #f0efec;
+  --text: #1a1a18;
+  --text-secondary: #6b6b68;
+  --text-tertiary: #a0a09c;
+  --border: rgba(0,0,0,0.12);
+  --border-strong: rgba(0,0,0,0.22);
+  --accent: #1a1a18;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --success-bg: #ecfdf5;
+  --success-text: #065f46;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a; --bg-secondary: #262623; --bg-tertiary: #2f2f2c;
+    --text: #f0efec; --text-secondary: #9a9a96; --text-tertiary: #5a5a57;
+    --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.2);
+    --accent: #f0efec;
+    --warning-bg: #3d2e00; --warning-text: #fcd34d;
+    --success-bg: #052e1c; --success-text: #6ee7b7;
+  }
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif; background: var(--bg-tertiary); color: var(--text); font-size: 15px; line-height: 1.7; min-height: 100vh; }
+.container { max-width: 860px; margin: 0 auto; padding: 2rem 1.25rem; }
+header { margin-bottom: 2rem; }
+header h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+header p { font-size: 13px; color: var(--text-secondary); }
+.card { background: var(--bg); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 1.5rem; margin-bottom: 1.25rem; }
+.tabs { display: flex; border-bottom: 0.5px solid var(--border); margin-bottom: 1.5rem; }
+.tab { padding: 8px 18px; font-size: 14px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: var(--text-secondary); font-family: inherit; }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
+.tab:hover:not(.active) { color: var(--text); }
+.pane { display: none; } .pane.active { display: block; }
+.field-label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+textarea { width: 100%; min-height: 180px; padding: 12px; font-size: 14px; font-family: inherit; line-height: 1.7; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text); resize: vertical; }
+textarea:focus { outline: none; border-color: var(--accent); }
+input[type="text"] { width: 100%; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text); }
+input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-size: 14px; font-family: inherit; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); cursor: pointer; background: var(--bg); color: var(--text); transition: background 0.12s; }
+.btn:hover { background: var(--bg-secondary); }
+.btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn-primary:hover { opacity: 0.85; background: var(--accent); }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+.action-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.match-count { font-size: 13px; color: var(--text-secondary); margin-left: auto; }
+.no-match { padding: 10px 14px; color: var(--success-text); font-size: 14px; background: var(--success-bg); border-radius: var(--radius-md); margin-top: 1rem; }
+
+/* 検出結果カード */
+.sentence-card { border: 0.5px solid var(--border); border-radius: var(--radius-md); margin-top: 1rem; overflow: hidden; }
+.sentence-card-header { padding: 10px 14px; background: var(--warning-bg); border-bottom: 0.5px solid var(--border); }
+.sentence-label { font-size: 11px; color: var(--warning-text); font-weight: 500; margin-bottom: 4px; }
+.sentence-original { font-size: 14px; color: var(--text); line-height: 1.7; }
+.sentence-original mark { background: #fde68a; border-radius: 2px; padding: 0 2px; color: var(--warning-text); font-weight: 500; }
+.suggestions { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.suggestion-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; margin-bottom: 2px; }
+.suggestion-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: var(--bg-secondary); border-radius: var(--radius-sm); border: 0.5px solid var(--border); }
+.suggestion-num { font-size: 11px; color: var(--text-tertiary); flex: 0 0 auto; padding-top: 2px; }
+.suggestion-text { font-size: 14px; color: var(--text); flex: 1; line-height: 1.6; }
+.copy-btn { flex: 0 0 auto; padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+
+/* パターン管理 */
+.pattern-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 0.5px solid var(--border); font-size: 14px; }
+.pattern-from-cell { flex: 0 0 180px; color: var(--text-secondary); font-size: 13px; padding-top: 4px; }
+.pattern-alts { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; }
+.pattern-alt { font-size: 12px; padding: 3px 10px; border-radius: 20px; background: var(--bg-secondary); border: 0.5px solid var(--border); color: var(--text); }
+.del-btn { flex: 0 0 auto; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: var(--text-tertiary); border-radius: var(--radius-sm); font-size: 16px; }
+.del-btn:hover { color: #dc2626; background: #fee2e2; }
+.add-form { margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--border); }
+.add-form-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.add-form .field { flex: 1; }
+.add-form label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+.add-alts-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; min-height: 28px; }
+.alt-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 3px 8px 3px 10px; border-radius: 20px; background: var(--bg-secondary); border: 0.5px solid var(--border); color: var(--text); }
+.chip-del { background: none; border: none; cursor: pointer; color: var(--text-tertiary); font-size: 14px; line-height: 1; padding: 0 2px; }
+.chip-del:hover { color: #dc2626; }
+.hint { font-size: 12px; color: var(--text-tertiary); margin-top: 6px; }
+.count-badge { font-size: 12px; padding: 2px 8px; background: var(--bg-secondary); border-radius: 20px; color: var(--text-secondary); margin-left: 8px; }
+.empty-state { text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>歓迎表現チェッカー</h1>
+    <p>Indeed掲載NGの「歓迎」系表現を含む文章を検出して修正案を提示します</p>
+  </header>
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('check')">原稿チェック</button>
+      <button class="tab" onclick="switchTab('patterns')">パターン管理</button>
+    </div>
+
+    <!-- 原稿チェック -->
+    <div id="pane-check" class="pane active">
+      <label class="field-label">求人原稿を貼り付けてください</label>
+      <textarea id="input-text" placeholder="ここに求人原稿をペーストしてください..."></textarea>
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="runCheck()">チェックする</button>
+        <button class="btn" onclick="clearAll()">クリア</button>
+        <span class="match-count" id="match-count"></span>
+      </div>
+      <div id="result-area"></div>
+    </div>
+
+    <!-- パターン管理 -->
+    <div id="pane-patterns" class="pane">
+      <div style="display:flex;align-items:center;margin-bottom:14px">
+        <span style="font-size:15px;font-weight:500">登録済みパターン</span>
+        <span class="count-badge" id="pattern-count">0件</span>
+      </div>
+      <div style="display:flex;gap:8px;font-size:12px;color:var(--text-secondary);padding:0 0 8px;border-bottom:0.5px solid var(--border)">
+        <span style="flex:0 0 180px">元の表現</span>
+        <span style="flex:1">言い換え候補</span>
+      </div>
+      <div id="pattern-list"></div>
+      <div class="add-form">
+        <div class="add-form-row">
+          <div class="field">
+            <label>元の表現（検索キーワード）</label>
+            <input type="text" id="new-from" placeholder="例：〇〇歓迎">
+          </div>
+          <div class="field">
+            <label>言い換え候補を追加</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="new-alt-input" placeholder="例：〇〇の方も活躍できます" style="flex:1" onkeydown="if(event.key==='Enter')addAltChip()">
+              <button class="btn btn-sm" onclick="addAltChip()">追加</button>
+            </div>
+          </div>
+        </div>
+        <div class="add-alts-row" id="new-alts-row"></div>
+        <button class="btn btn-primary btn-sm" onclick="addPattern()">パターンを登録</button>
+        <div class="hint">※ 元の表現は部分一致で検索。同じ元の表現を登録すると候補が追加されます。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'hireikan_v2';
+let patterns = [];
+let pendingAlts = [];
+
+const DEFAULT_PATTERNS = [
+  {from:'未経験歓迎', alts:['知識・経験ゼロから挑戦できる環境です','初めての方も安心です','未経験でも活躍できる場です','経験不問','初めてでも心配いりません','未経験の方も積極採用中','未経験の方をお待ちしております']},
+  {from:'経験者大歓迎', alts:['あなたの経験が、当社の即戦力になります','ぜひ力を貸してください','経験者の方を積極採用中','あなたの経験を活かしてみませんか？']},
+  {from:'フリーター歓迎', alts:['職歴不問']},
+  {from:'ブランクのある方も歓迎します', alts:['ブランクがあっても大丈夫！']},
+  {from:'海外のワーホスタッフさんの歓迎', alts:['ワーホリ中の方も活躍中']},
+  {from:'正社員への転換・キャリアアップも大歓迎', alts:['キャリアアップを全力でバックアップします']},
+  {from:'セカンドキャリア歓迎', alts:['ここからのセカンドキャリアを応援します','セカンドキャリアを目指す方も、積極採用中']},
+  {from:'新入社員の歓迎会', alts:['新入社員の交流会あり']},
+  {from:'歓迎要件', alts:['活かせる経験・スキル']},
+  {from:'こんな方々を歓迎中', alts:['こんな人に来てもらいたいです！','新しい仲間としてお迎えしたいです','特にこんな方々に注目しています']},
+  {from:'友達同士歓迎', alts:['ぜひ友人と一緒にどうぞ！']},
+  {from:'以下のような方大歓迎', alts:['下記に当てはまる方、お待ちしてます！']},
+  {from:'長期勤務できる方歓迎', alts:['じっくり長く働きたい方にピッタリ']},
+  {from:'新しい知識を学ぶのが好きな方大歓迎', alts:['新しい知識を学ぶのが好きな方にピッタリのお仕事です','新しい知識を学ぶのが好きな方もモチベーションを保ちやすい職場です','新しい知識を学ぶのが好きな方が楽しんで取り組める業務です']},
+  {from:'大歓迎', alts:['ぜひご応募ください']},
+  {from:'歓迎', alts:['活躍できます','の方、楽しんで取り組めます','の方、強みを発揮できます','の方、お待ちしています','の方、お迎えしたいです','の方、募集中です','の方、ぴったりです']},
+];
+
+function loadPatterns() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    patterns = raw ? JSON.parse(raw) : [...DEFAULT_PATTERNS];
+    if (!raw) savePatterns();
+  } catch(e) { patterns = [...DEFAULT_PATTERNS]; }
+  renderPatterns();
+}
+
+function savePatterns() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns)); } catch(e) {}
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 文章を区切る（句読点・改行で分割）
+function splitSentences(text) {
+  const results = [];
+  // 改行または句読点で文章を分割
+  const parts = text.split(/(?<=[。！？\n])|(?=\n)/);
+  let buf = '';
+  for (const part of parts) {
+    buf += part;
+    if (/[。！？]$/.test(buf.trim()) || part.includes('\n')) {
+      if (buf.trim()) results.push(buf);
+      buf = '';
+    }
+  }
+  if (buf.trim()) results.push(buf);
+  return results.length > 0 ? results : [text];
+}
+
+function runCheck() {
+  const text = document.getElementById('input-text').value;
+  if (!text.trim()) return;
+
+  // 文章単位で分割
+  const lines = text.split('\n');
+  const sentences = [];
+  for (const line of lines) {
+    if (!line.trim()) { sentences.push({text: line, isEmpty: true}); continue; }
+    // 行内を句読点で分割
+    const parts = line.split(/(?<=[。！？])/);
+    for (const p of parts) {
+      if (p.trim()) sentences.push({text: p, isEmpty: false});
+    }
+  }
+
+  const hits = [];
+
+  for (const sentence of sentences) {
+    if (sentence.isEmpty) continue;
+    const matchedPatterns = [];
+    for (const p of patterns) {
+      let re;
+      try { re = new RegExp(p.from); } catch(e) { continue; }
+      if (re.test(sentence.text)) {
+        matchedPatterns.push(p);
+      }
+    }
+    if (matchedPatterns.length > 0) {
+      // 修正案を生成：マッチしたパターンの言い換え候補それぞれで文章を置換
+      const suggestions = [];
+      for (const p of matchedPatterns) {
+        for (const alt of p.alts) {
+          let modified = sentence.text;
+          try {
+            const re = new RegExp(p.from, 'g');
+            modified = modified.replace(re, alt);
+            // 文末の重複を整理（例：「〜できます。です。」→「〜できます。」）
+            modified = modified
+              .replace(/(できます)(です)/g, '$1')
+              .replace(/(います)(です)/g, '$1')
+              .replace(/(ください)(です)/g, '$1')
+              .replace(/(中)(です)/g, '$1')
+              .replace(/(です)(です)/g, '$1')
+              .replace(/(ます)(ます)/g, '$1')
+              .replace(/([。！？！？])+/g, '$1');
+          } catch(e) {}
+          if (modified !== sentence.text && !suggestions.includes(modified)) {
+            suggestions.push(modified);
+          }
+        }
+      }
+      // ハイライト用
+      let highlighted = escHtml(sentence.text);
+      for (const p of matchedPatterns) {
+        try {
+          const re = new RegExp(p.from, 'g');
+          highlighted = highlighted.replace(re, m => `<mark>${escHtml(m)}</mark>`);
+        } catch(e) {}
+      }
+      hits.push({original: sentence.text, highlighted, suggestions});
+    }
+  }
+
+  const resultArea = document.getElementById('result-area');
+  const countEl = document.getElementById('match-count');
+
+  if (hits.length === 0) {
+    countEl.textContent = '問題なし';
+    resultArea.innerHTML = '<div class="no-match">✓ 「歓迎」系の表現は見つかりませんでした</div>';
+    return;
+  }
+
+  countEl.textContent = hits.length + '文ヒット';
+  resultArea.innerHTML = hits.map((hit, i) => `
+    <div class="sentence-card">
+      <div class="sentence-card-header">
+        <div class="sentence-label">検出された文章</div>
+        <div class="sentence-original">${hit.highlighted}</div>
+      </div>
+      <div class="suggestions">
+        <div class="suggestion-label">修正案（${hit.suggestions.length}件）</div>
+        ${hit.suggestions.map((s, j) => `
+          <div class="suggestion-item">
+            <span class="suggestion-num">案${j+1}</span>
+            <span class="suggestion-text">${escHtml(s)}</span>
+            <button class="btn btn-sm copy-btn" onclick="copySuggestion(this, '${escHtml(s).replace(/'/g, "\\'")}')">コピー</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function copySuggestion(btn, text) {
+  // HTMLエンティティをデコード
+  const decoded = text.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+  navigator.clipboard.writeText(decoded).then(() => {
+    btn.textContent = 'コピー済み！';
+    setTimeout(() => { btn.textContent = 'コピー'; }, 1500);
+  });
+}
+
+function clearAll() {
+  document.getElementById('input-text').value = '';
+  document.getElementById('result-area').innerHTML = '';
+  document.getElementById('match-count').textContent = '';
+}
+
+function renderPatterns() {
+  document.getElementById('pattern-count').textContent = patterns.length + '件';
+  const list = document.getElementById('pattern-list');
+  if (!patterns.length) { list.innerHTML = '<div class="empty-state">パターンがまだありません</div>'; return; }
+  list.innerHTML = patterns.map((p, i) => `
+    <div class="pattern-item">
+      <span class="pattern-from-cell">${escHtml(p.from)}</span>
+      <div class="pattern-alts">
+        ${p.alts.map(a => `<span class="pattern-alt">${escHtml(a)}</span>`).join('')}
+      </div>
+      <button class="del-btn" onclick="deletePattern(${i})" title="削除">✕</button>
+    </div>
+  `).join('');
+}
+
+function addAltChip() {
+  const input = document.getElementById('new-alt-input');
+  const val = input.value.trim();
+  if (!val) return;
+  pendingAlts.push(val);
+  input.value = '';
+  renderPendingAlts();
+}
+
+function renderPendingAlts() {
+  const row = document.getElementById('new-alts-row');
+  row.innerHTML = pendingAlts.map((a, i) => `
+    <span class="alt-chip">${escHtml(a)}<button class="chip-del" onclick="removeAlt(${i})">✕</button></span>
+  `).join('');
+}
+
+function removeAlt(i) {
+  pendingAlts.splice(i, 1);
+  renderPendingAlts();
+}
+
+function addPattern() {
+  const f = document.getElementById('new-from').value.trim();
+  const altInput = document.getElementById('new-alt-input').value.trim();
+  if (altInput) { pendingAlts.push(altInput); document.getElementById('new-alt-input').value = ''; }
+  if (!f || !pendingAlts.length) { alert('元の表現と言い換え候補を少なくとも1つ入力してください'); return; }
+  const existing = patterns.find(p => p.from === f);
+  if (existing) {
+    pendingAlts.forEach(a => { if (!existing.alts.includes(a)) existing.alts.push(a); });
+  } else {
+    patterns.unshift({from: f, alts: [...pendingAlts]});
+  }
+  pendingAlts = [];
+  savePatterns();
+  renderPatterns();
+  renderPendingAlts();
+  document.getElementById('new-from').value = '';
+}
+
+function deletePattern(i) {
+  if (!confirm(`「${patterns[i].from}」を削除しますか？`)) return;
+  patterns.splice(i, 1);
+  savePatterns();
+  renderPatterns();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById('pane-' + tab).classList.add('active');
+}
+
+document.addEventListener('DOMContentLoaded', loadPatterns);
+</script>
+</body>
+</html>

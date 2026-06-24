@@ -150,40 +150,31 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
 </div>
 
 <script>
-const STORAGE_KEY = 'hireikan_v2';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz4iTBB0X9wIZBjEnwfLbYPeIB1IQZw3gupNdDdHyVyjNh1e8bqZty7ik_tbfVLQETnbw/exec';
 let patterns = [];
 let pendingAlts = [];
 
-const DEFAULT_PATTERNS = [
-  {from:'未経験歓迎', alts:['知識・経験ゼロから挑戦できる環境です','初めての方も安心です','未経験でも活躍できる場です','経験不問','初めてでも心配いりません','未経験の方も積極採用中','未経験の方をお待ちしております']},
-  {from:'経験者大歓迎', alts:['あなたの経験が、当社の即戦力になります','ぜひ力を貸してください','経験者の方を積極採用中','あなたの経験を活かしてみませんか？']},
-  {from:'フリーター歓迎', alts:['職歴不問']},
-  {from:'ブランクのある方も歓迎します', alts:['ブランクがあっても大丈夫！']},
-  {from:'海外のワーホスタッフさんの歓迎', alts:['ワーホリ中の方も活躍中']},
-  {from:'正社員への転換・キャリアアップも大歓迎', alts:['キャリアアップを全力でバックアップします']},
-  {from:'セカンドキャリア歓迎', alts:['ここからのセカンドキャリアを応援します','セカンドキャリアを目指す方も、積極採用中']},
-  {from:'新入社員の歓迎会', alts:['新入社員の交流会あり']},
-  {from:'歓迎要件', alts:['活かせる経験・スキル']},
-  {from:'こんな方々を歓迎中', alts:['こんな人に来てもらいたいです！','新しい仲間としてお迎えしたいです','特にこんな方々に注目しています']},
-  {from:'友達同士歓迎', alts:['ぜひ友人と一緒にどうぞ！']},
-  {from:'以下のような方大歓迎', alts:['下記に当てはまる方、お待ちしてます！']},
-  {from:'長期勤務できる方歓迎', alts:['じっくり長く働きたい方にピッタリ']},
-  {from:'新しい知識を学ぶのが好きな方大歓迎', alts:['新しい知識を学ぶのが好きな方にピッタリのお仕事です','新しい知識を学ぶのが好きな方もモチベーションを保ちやすい職場です','新しい知識を学ぶのが好きな方が楽しんで取り組める業務です']},
-  {from:'大歓迎', alts:['ぜひご応募ください']},
-  {from:'歓迎', alts:['活躍できます','の方、楽しんで取り組めます','の方、強みを発揮できます','の方、お待ちしています','の方、お迎えしたいです','の方、募集中です','の方、ぴったりです']},
-];
-
-function loadPatterns() {
+async function loadPatterns() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    patterns = raw ? JSON.parse(raw) : [...DEFAULT_PATTERNS];
-    if (!raw) savePatterns();
-  } catch(e) { patterns = [...DEFAULT_PATTERNS]; }
+    const res = await fetch(GAS_URL + '?action=get');
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      patterns = data;
+    }
+  } catch(e) {
+    console.error('パターン読み込みエラー', e);
+    patterns = [];
+  }
   renderPatterns();
 }
 
-function savePatterns() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns)); } catch(e) {}
+async function savePatterns() {
+  try {
+    const url = GAS_URL + '?action=update&data=' + encodeURIComponent(JSON.stringify(patterns));
+    await fetch(url);
+  } catch(e) {
+    console.error('パターン保存エラー', e);
+  }
 }
 
 function escHtml(s) {

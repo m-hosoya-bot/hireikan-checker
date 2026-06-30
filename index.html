@@ -65,6 +65,7 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .sentence-label { font-size: 11px; color: var(--warning-text); font-weight: 500; margin-bottom: 4px; }
 .sentence-original { font-size: 14px; color: var(--text); line-height: 1.7; }
 .sentence-original mark { background: #fde68a; border-radius: 2px; padding: 0 2px; color: var(--warning-text); font-weight: 500; }
+.ng-reason { margin-top: 8px; font-size: 12px; color: var(--warning-text); line-height: 1.6; }
 .suggestions { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .suggestion-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; margin-bottom: 2px; }
 .suggestion-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: var(--bg-secondary); border-radius: var(--radius-sm); border: 0.5px solid var(--border); }
@@ -77,6 +78,7 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .pattern-from-cell { flex: 0 0 180px; color: var(--text-secondary); font-size: 13px; padding-top: 4px; }
 .pattern-alts { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; }
 .pattern-alt { font-size: 12px; padding: 3px 10px; border-radius: 20px; background: var(--bg-secondary); border: 0.5px solid var(--border); color: var(--text); }
+.pattern-reason-cell { flex: 0 0 160px; font-size: 12px; color: var(--warning-text); padding-top: 4px; }
 .del-btn { flex: 0 0 auto; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: var(--text-tertiary); border-radius: var(--radius-sm); font-size: 16px; }
 .del-btn:hover { color: #dc2626; background: #fee2e2; }
 .add-form { margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--border); }
@@ -125,6 +127,7 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
       <div style="display:flex;gap:8px;font-size:12px;color:var(--text-secondary);padding:0 0 8px;border-bottom:0.5px solid var(--border)">
         <span style="flex:0 0 180px">元の表現</span>
         <span style="flex:1">言い換え候補</span>
+        <span style="flex:0 0 160px">NG理由</span>
       </div>
       <div id="pattern-list"></div>
       <div class="add-form">
@@ -141,9 +144,15 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
             </div>
           </div>
         </div>
+        <div class="add-form-row">
+          <div class="field">
+            <label>NG理由（任意）</label>
+            <input type="text" id="new-reason" placeholder="例：年齢を制限する表現に該当する可能性あり">
+          </div>
+        </div>
         <div class="add-alts-row" id="new-alts-row"></div>
         <button class="btn btn-primary btn-sm" onclick="addPattern()">パターンを登録</button>
-        <div class="hint">※ 元の表現は部分一致で検索。同じ元の表現を登録すると候補が追加されます。</div>
+        <div class="hint">※ 元の表現は部分一致で検索。同じ元の表現を登録すると候補が追加されます。言い換え候補なしでNG理由だけの登録も可能です。</div>
       </div>
     </div>
   </div>
@@ -230,7 +239,7 @@ function runCheck() {
       // 修正案を生成：マッチしたパターンの言い換え候補それぞれで文章を置換
       const suggestions = [];
       for (const p of matchedPatterns) {
-        for (const alt of p.alts) {
+        for (const alt of (p.alts || [])) {
           let modified = sentence.text;
           try {
             const re = new RegExp(p.from, 'g');
@@ -258,7 +267,7 @@ function runCheck() {
           highlighted = highlighted.replace(re, m => `<mark>${escHtml(m)}</mark>`);
         } catch(e) {}
       }
-      hits.push({original: sentence.text, highlighted, suggestions});
+      hits.push({original: sentence.text, highlighted, suggestions, reasons: matchedPatterns.map(p => p.reason).filter(Boolean)});
     }
   }
 
@@ -267,7 +276,7 @@ function runCheck() {
 
   if (hits.length === 0) {
     countEl.textContent = '問題なし';
-    resultArea.innerHTML = '<div class="no-match">✓ 「歓迎」系の表現は見つかりませんでした</div>';
+    resultArea.innerHTML = '<div class="no-match">✓ NGワードは見つかりませんでした</div>';
     return;
   }
 
@@ -277,7 +286,9 @@ function runCheck() {
       <div class="sentence-card-header">
         <div class="sentence-label">検出された文章</div>
         <div class="sentence-original">${hit.highlighted}</div>
+        ${hit.reasons.length ? `<div class="ng-reason">${hit.reasons.map(r => '⚠️ ' + escHtml(r)).join('<br>')}</div>` : ''}
       </div>
+      ${hit.suggestions.length ? `
       <div class="suggestions">
         <div class="suggestion-label">修正案（${hit.suggestions.length}件）</div>
         ${hit.suggestions.map((s, j) => `
@@ -287,7 +298,7 @@ function runCheck() {
             <button class="btn btn-sm copy-btn" onclick="copySuggestion(this, '${escHtml(s).replace(/'/g, "\\'")}')">コピー</button>
           </div>
         `).join('')}
-      </div>
+      </div>` : ''}
     </div>
   `).join('');
 }
@@ -315,8 +326,9 @@ function renderPatterns() {
     <div class="pattern-item">
       <span class="pattern-from-cell">${escHtml(p.from)}</span>
       <div class="pattern-alts">
-        ${p.alts.map(a => `<span class="pattern-alt">${escHtml(a)}</span>`).join('')}
+        ${(p.alts || []).map(a => `<span class="pattern-alt">${escHtml(a)}</span>`).join('')}
       </div>
+      <span class="pattern-reason-cell">${p.reason ? escHtml(p.reason) : ''}</span>
       <button class="del-btn" onclick="deletePattern(${i})" title="削除">✕</button>
     </div>
   `).join('');
@@ -346,19 +358,23 @@ function removeAlt(i) {
 function addPattern() {
   const f = document.getElementById('new-from').value.trim();
   const altInput = document.getElementById('new-alt-input').value.trim();
+  const reason = document.getElementById('new-reason').value.trim();
   if (altInput) { pendingAlts.push(altInput); document.getElementById('new-alt-input').value = ''; }
-  if (!f || !pendingAlts.length) { alert('元の表現と言い換え候補を少なくとも1つ入力してください'); return; }
+  if (!f) { alert('元の表現を入力してください'); return; }
+  if (!pendingAlts.length && !reason) { alert('言い換え候補またはNG理由のどちらかを入力してください'); return; }
   const existing = patterns.find(p => p.from === f);
   if (existing) {
     pendingAlts.forEach(a => { if (!existing.alts.includes(a)) existing.alts.push(a); });
+    if (reason) existing.reason = reason;
   } else {
-    patterns.unshift({from: f, alts: [...pendingAlts]});
+    patterns.unshift({from: f, alts: [...pendingAlts], reason: reason});
   }
   pendingAlts = [];
   savePatterns();
   renderPatterns();
   renderPendingAlts();
   document.getElementById('new-from').value = '';
+  document.getElementById('new-reason').value = '';
 }
 
 function deletePattern(i) {

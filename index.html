@@ -236,26 +236,51 @@ function runCheck() {
       }
     }
     if (matchedPatterns.length > 0) {
-      // 修正案を生成：マッチしたパターンの言い換え候補それぞれで文章を置換
-      const suggestions = [];
-      for (const p of matchedPatterns) {
-        for (const alt of (p.alts || [])) {
-          let modified = sentence.text;
+      // 修正案を生成：マッチした全パターンを同時に置換する組み合わせを作る
+      function cleanupText(modified) {
+        return modified
+          .replace(/(できます)(です)/g, '$1')
+          .replace(/(います)(です)/g, '$1')
+          .replace(/(ください)(です)/g, '$1')
+          .replace(/(中)(です)/g, '$1')
+          .replace(/(です)(です)/g, '$1')
+          .replace(/(ます)(ます)/g, '$1')
+          .replace(/([。！？！？])+/g, '$1');
+      }
+
+      function applyAll(text, altChoice) {
+        let modified = text;
+        matchedPatterns.forEach((p, idx) => {
+          const alt = altChoice[idx];
+          if (alt === undefined) return;
           try {
             const re = new RegExp(p.from, 'g');
             modified = modified.replace(re, alt);
-            // 文末の重複を整理（例：「〜できます。です。」→「〜できます。」）
-            modified = modified
-              .replace(/(できます)(です)/g, '$1')
-              .replace(/(います)(です)/g, '$1')
-              .replace(/(ください)(です)/g, '$1')
-              .replace(/(中)(です)/g, '$1')
-              .replace(/(です)(です)/g, '$1')
-              .replace(/(ます)(ます)/g, '$1')
-              .replace(/([。！？！？])+/g, '$1');
           } catch(e) {}
-          if (modified !== sentence.text && !suggestions.includes(modified)) {
-            suggestions.push(modified);
+        });
+        return cleanupText(modified);
+      }
+
+      const replaceTargets = matchedPatterns.filter(p => p.alts && p.alts.length);
+      const suggestions = [];
+
+      if (replaceTargets.length > 0) {
+        const baseChoice = {};
+        matchedPatterns.forEach((p, idx) => { if (p.alts && p.alts.length) baseChoice[idx] = p.alts[0]; });
+        const baseText = applyAll(sentence.text, baseChoice);
+        if (baseText !== sentence.text) suggestions.push(baseText);
+
+        const MAX_SUGGESTIONS = 20;
+        outer:
+        for (const p of replaceTargets) {
+          const idx = matchedPatterns.indexOf(p);
+          for (const alt of p.alts) {
+            const choice = {...baseChoice, [idx]: alt};
+            const text = applyAll(sentence.text, choice);
+            if (text !== sentence.text && !suggestions.includes(text)) {
+              suggestions.push(text);
+              if (suggestions.length >= MAX_SUGGESTIONS) break outer;
+            }
           }
         }
       }

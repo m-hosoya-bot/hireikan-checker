@@ -235,6 +235,8 @@ function runCheck() {
         matchedPatterns.push(p);
       }
     }
+    // 元の表現が長いパターンを優先（「未経験歓迎」が「歓迎」より先に処理されるように）
+    matchedPatterns.sort((a, b) => b.from.length - a.from.length);
     if (matchedPatterns.length > 0) {
       // 修正案を生成：マッチした全パターンを同時に置換する組み合わせを作る
       function cleanupText(modified) {
@@ -284,14 +286,29 @@ function runCheck() {
           }
         }
       }
-      // ハイライト用
-      let highlighted = escHtml(sentence.text);
+      // ハイライト用（長いパターンを優先し、既にハイライト済みの範囲は除外）
+      const ranges = []; // {start, end} のリスト
       for (const p of matchedPatterns) {
         try {
           const re = new RegExp(p.from, 'g');
-          highlighted = highlighted.replace(re, m => `<mark>${escHtml(m)}</mark>`);
+          let m;
+          while ((m = re.exec(sentence.text)) !== null) {
+            const start = m.index, end = m.index + m[0].length;
+            const overlaps = ranges.some(r => !(end <= r.start || start >= r.end));
+            if (!overlaps) ranges.push({start, end});
+            if (m[0].length === 0) re.lastIndex++;
+          }
         } catch(e) {}
       }
+      ranges.sort((a, b) => a.start - b.start);
+      let highlighted = '';
+      let cursor = 0;
+      for (const r of ranges) {
+        highlighted += escHtml(sentence.text.slice(cursor, r.start));
+        highlighted += `<mark>${escHtml(sentence.text.slice(r.start, r.end))}</mark>`;
+        cursor = r.end;
+      }
+      highlighted += escHtml(sentence.text.slice(cursor));
       hits.push({original: sentence.text, highlighted, suggestions, reasons: matchedPatterns.map(p => p.reason).filter(Boolean)});
     }
   }

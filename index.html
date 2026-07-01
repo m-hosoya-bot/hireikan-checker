@@ -130,7 +130,7 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
         <span style="flex:0 0 160px">NG理由</span>
       </div>
       <div id="pattern-list"></div>
-      <div class="add-form">
+      <div class="add-form" id="add-form-area">
         <div class="add-form-row">
           <div class="field">
             <label>元の表現（検索キーワード）</label>
@@ -153,6 +153,7 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
         <div class="add-alts-row" id="new-alts-row"></div>
         <button class="btn btn-primary btn-sm" onclick="addPattern()">パターンを登録</button>
         <div class="hint">※ 元の表現は部分一致で検索。同じ元の表現を登録すると候補が追加されます。言い換え候補なしでNG理由だけの登録も可能です。</div>
+      <div id="readonly-note" class="hint" style="display:none;margin-top:8px">※ 編集権限がないため、パターンの追加・削除はできません（閲覧のみ）</div>
       </div>
     </div>
   </div>
@@ -162,6 +163,8 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbz4iTBB0X9wIZBjEnwfLbYPeIB1IQZw3gupNdDdHyVyjNh1e8bqZty7ik_tbfVLQETnbw/exec';
 let patterns = [];
 let pendingAlts = [];
+// URLに ?edit=true がある場合のみ編集可能（社外の人には編集UIを非表示）
+const EDIT_MODE = new URLSearchParams(window.location.search).get('edit') === 'true';
 
 async function loadPatterns() {
   try {
@@ -371,7 +374,7 @@ function renderPatterns() {
         ${(p.alts || []).map(a => `<span class="pattern-alt">${escHtml(a)}</span>`).join('')}
       </div>
       <span class="pattern-reason-cell">${p.reason ? escHtml(p.reason) : ''}</span>
-      <button class="del-btn" onclick="deletePattern(${i})" title="削除">✕</button>
+      ${EDIT_MODE ? `<button class="del-btn" onclick="deletePattern(${i})" title="削除">✕</button>` : ''}
     </div>
   `).join('');
 }
@@ -398,6 +401,7 @@ function removeAlt(i) {
 }
 
 function addPattern() {
+  if (!EDIT_MODE) return;
   const f = document.getElementById('new-from').value.trim();
   const altInput = document.getElementById('new-alt-input').value.trim();
   const reason = document.getElementById('new-reason').value.trim();
@@ -420,6 +424,7 @@ function addPattern() {
 }
 
 function deletePattern(i) {
+  if (!EDIT_MODE) return;
   if (!confirm(`「${patterns[i].from}」を削除しますか？`)) return;
   patterns.splice(i, 1);
   savePatterns();
@@ -433,7 +438,17 @@ function switchTab(tab) {
   document.getElementById('pane-' + tab).classList.add('active');
 }
 
-document.addEventListener('DOMContentLoaded', loadPatterns);
+function initEditMode() {
+  if (!EDIT_MODE) {
+    document.getElementById('add-form-area').style.display = 'none';
+    document.getElementById('readonly-note').style.display = 'block';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initEditMode();
+  loadPatterns();
+});
 </script>
 </body>
 </html>
